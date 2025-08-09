@@ -1,0 +1,122 @@
+[
+  {
+    "first_name": "Mike",
+    "last_name": "Anderson",
+    "LHP": { "avg": 0.285, "obp": 0.350, "slug": 0.450 },
+    "RHP": { "avg": 0.270, "obp": 0.340, "slug": 0.420 }
+  },
+  {
+    "first_name": "David",
+    "last_name": "Bennett",
+    "LHP": { "avg": 0.300, "obp": 0.375, "slug": 0.500 },
+    "RHP": { "avg": 0.265, "obp": 0.335, "slug": 0.410 }
+  },
+  {
+    "first_name": "Chris",
+    "last_name": "Collins",
+    "LHP": { "avg": 0.255, "obp": 0.320, "slug": 0.400 },
+    "RHP": { "avg": 0.290, "obp": 0.360, "slug": 0.480 }
+  },
+  {
+    "first_name": "Jason",
+    "last_name": "Diaz",
+    "LHP": { "avg": 0.310, "obp": 0.385, "slug": 0.510 },
+    "RHP": { "avg": 0.275, "obp": 0.345, "slug": 0.440 }
+  },
+  {
+    "first_name": "Anthony",
+    "last_name": "Edwards",
+    "LHP": { "avg": 0.240, "obp": 0.310, "slug": 0.370 },
+    "RHP": { "avg": 0.260, "obp": 0.330, "slug": 0.400 }
+  },
+  {
+    "first_name": "Ryan",
+    "last_name": "Foster",
+    "LHP": { "avg": 0.275, "obp": 0.350, "slug": 0.460 },
+    "RHP": { "avg": 0.285, "obp": 0.355, "slug": 0.470 }
+  },
+  {
+    "first_name": "Daniel",
+    "last_name": "Garcia",
+    "LHP": { "avg": 0.295, "obp": 0.370, "slug": 0.490 },
+    "RHP": { "avg": 0.280, "obp": 0.355, "slug": 0.460 }
+  },
+  {
+    "first_name": "Evan",
+    "last_name": "Harris",
+    "LHP": { "avg": 0.250, "obp": 0.320, "slug": 0.390 },
+    "RHP": { "avg": 0.270, "obp": 0.340, "slug": 0.420 }
+  },
+  {
+    "first_name": "Brandon",
+    "last_name": "Ingram",
+    "LHP": { "avg": 0.265, "obp": 0.340, "slug": 0.430 },
+    "RHP": { "avg": 0.250, "obp": 0.325, "slug": 0.400 }
+  },
+  {
+    "first_name": "Kyle",
+    "last_name": "Johnson",
+    "LHP": { "avg": 0.280, "obp": 0.350, "slug": 0.460 },
+    "RHP": { "avg": 0.290, "obp": 0.360, "slug": 0.470 }
+  },
+  {
+    "first_name": "Zach",
+    "last_name": "King",
+    "LHP": { "avg": 0.305, "obp": 0.375, "slug": 0.510 },
+    "RHP": { "avg": 0.285, "obp": 0.355, "slug": 0.480 }
+  },
+  {
+    "first_name": "Matthew",
+    "last_name": "Lopez",
+    "LHP": { "avg": 0.255, "obp": 0.325, "slug": 0.410 },
+    "RHP": { "avg": 0.275, "obp": 0.345, "slug": 0.430 }
+  },
+  {
+    "first_name": "Justin",
+    "last_name": "Martin",
+    "LHP": { "avg": 0.290, "obp": 0.365, "slug": 0.480 },
+    "RHP": { "avg": 0.265, "obp": 0.340, "slug": 0.450 }
+  },
+  {
+    "first_name": "Aaron",
+    "last_name": "Nelson",
+    "LHP": { "avg": 0.245, "obp": 0.315, "slug": 0.380 },
+    "RHP": { "avg": 0.260, "obp": 0.330, "slug": 0.400 }
+  },
+  {
+    "first_name": "Patrick",
+    "last_name": "Owens",
+    "LHP": { "avg": 0.270, "obp": 0.340, "slug": 0.450 },
+    "RHP": { "avg": 0.280, "obp": 0.350, "slug": 0.460 }
+  },
+  {
+    "first_name": "Sean",
+    "last_name": "Parker",
+    "LHP": { "avg": 0.310, "obp": 0.385, "slug": 0.520 },
+    "RHP": { "avg": 0.300, "obp": 0.375, "slug": 0.500 }
+  },
+  {
+    "first_name": "Brian",
+    "last_name": "Quinn",
+    "LHP": { "avg": 0.265, "obp": 0.335, "slug": 0.430 },
+    "RHP": { "avg": 0.250, "obp": 0.320, "slug": 0.410 }
+  },
+  {
+    "first_name": "Luke",
+    "last_name": "Roberts",
+    "LHP": { "avg": 0.275, "obp": 0.350, "slug": 0.460 },
+    "RHP": { "avg": 0.285, "obp": 0.355, "slug": 0.470 }
+  },
+  {
+    "first_name": "Tom",
+    "last_name": "Stevens",
+    "LHP": { "avg": 0.260, "obp": 0.330, "slug": 0.420 },
+    "RHP": { "avg": 0.270, "obp": 0.340, "slug": 0.430 }
+  },
+  {
+    "first_name": "Mark",
+    "last_name": "Turner",
+    "LHP": { "avg": 0.295, "obp": 0.370, "slug": 0.500 },
+    "RHP": { "avg": 0.280, "obp": 0.355, "slug": 0.470 }
+  }
+]
