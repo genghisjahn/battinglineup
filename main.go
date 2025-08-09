@@ -37,13 +37,14 @@ func main() {
 
 		batterIndex := 0
 		for inning := 1; inning <= 9; inning++ {
-			fmt.Println("Inning:", inning)
+			//fmt.Println("Inning:", inning)
 			runsStart := game.Runs
+			_ = runsStart
 			outs := 0
 			for outs < 3 {
 				game.Field.AtBat = &players[batterIndex]
 				result := players[batterIndex].PlateAppearance("right")
-				fmt.Println(players[batterIndex].LastName + ", " + players[batterIndex].FirstName + ": " + result)
+				//fmt.Println(players[batterIndex].LastName + ", " + players[batterIndex].FirstName + ": " + result)
 				switch result {
 				case baseball.HIT_OUT:
 					outs++
@@ -73,14 +74,20 @@ func main() {
 			lob := game.Field.LOB()
 			game.AddLOB(lob)
 			game.Field.FirstBase, game.Field.SecondBase, game.Field.ThirdBase = nil, nil, nil
-			fmt.Println("Inning:", inning, "LOB:", lob, "runs:", game.Runs-runsStart, "total:", game.Runs)
-			fmt.Println("----------")
+			//fmt.Println("Inning:", inning, "LOB:", lob, "runs:", game.Runs-runsStart, "total:", game.Runs)
+			//fmt.Println("----------")
 		}
 		finalLOB := game.LOB
-		fmt.Printf("Final totals — Hits: %d, Runs: %d, LOB: %d\n", game.Hits, game.Runs, finalLOB)
+		_ = finalLOB
+		//fmt.Printf("Final totals — Hits: %d, Runs: %d, LOB: %d\n", game.Hits, game.Runs, finalLOB)
 		if game.Hits == 0 {
 			fmt.Println("NO HITTER! GAME:" + fmt.Sprintf("%v", gamecount))
 			break
+		}
+		if gamecount == 1000 {
+			fmt.Println("Done")
+			break
+
 		}
 	}
 }
