@@ -23,7 +23,7 @@ type Player struct {
 	RHP       Stats  `json:"RHP"`
 }
 
-func (p Player) PlateAppearance(LRPitcher string) string {
+func (p Player) PlateAppearance(LRPitcher string, r *rand.Rand) string {
 	// Choose splits based on pitcher handedness input ("left" uses LHP, otherwise RHP)
 	var s Stats
 	if LRPitcher == "left" {
@@ -31,17 +31,16 @@ func (p Player) PlateAppearance(LRPitcher string) string {
 	} else {
 		s = p.RHP
 	}
-
-	r := rand.Float64()
+	u := r.Float64()
 	// Outcome by OBP/AVG thresholds
-	if r > s.OBP {
+	if u > s.OBP {
 		return HIT_OUT
 	}
-	if r > s.AVG { // r <= OBP here
+	if u > s.AVG { // u <= OBP here
 		return HIT_BY_PITCH_WALK
 	}
 	// It's a hit: decide which kind
-	return hitType(s.AVG, s.SLUG)
+	return hitType(s.AVG, s.SLUG, r)
 }
 
 type Stats struct {
@@ -176,7 +175,7 @@ type Game struct {
 	Field Field
 }
 
-func hitType(avg, slug float64) string {
+func hitType(avg, slug float64, r *rand.Rand) string {
 	// Defensive defaults
 	if avg <= 0 || slug <= 0 {
 		return HIT_SINGLE
@@ -258,16 +257,16 @@ func hitType(avg, slug float64) string {
 	}
 
 	// Draw
-	r := rand.Float64()
-	if r < pS {
+	u := r.Float64()
+	if u < pS {
 		return HIT_SINGLE
 	}
-	r -= pS
-	if r < p2 {
+	u -= pS
+	if u < p2 {
 		return HIT_DOUBLE
 	}
-	r -= p2
-	if r < p3 {
+	u -= p2
+	if u < p3 {
 		return HIT_TRIPLE
 	}
 	return HIT_HOMERUN
