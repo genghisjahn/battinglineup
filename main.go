@@ -6,7 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	baseball "github.com/genghisjahn/battinglineup/batting"
@@ -84,84 +86,85 @@ func main() {
 		log.Fatalf("Need at least 9 players, have %d", len(players))
 	}
 
-	// Loop over all possible 9-player lineups
-	count := 0
-	combinations(len(players), 9, func(idx []int) bool {
-		permutations(idx, func(order []int) bool {
-			lineup := make([]baseball.Player, 9)
-			for i := 0; i < 9; i++ {
-				lineup[i] = players[order[i]]
-			}
+	lineupCount := 1
 
-			// This is where you'll put your simulation logic later
-
-			count++
-			if count%100000 == 0 {
-				fmt.Printf("Processed %d permutations...\n", count)
-			}
-			return true
-		})
-		return true
-	})
-	return
-	rand.Seed(time.Now().UnixNano())
+	// Concurrent lineup processing
+	lineupCh := make(chan []baseball.Player, 1024)
 	var wg sync.WaitGroup
-	for gamecount := 0; gamecount < 1000; gamecount++ {
-		wg.Add(1)
-		go func(gameID int) {
-			defer wg.Done()
-			game := baseball.Game{}
-			seed := uint64(time.Now().UnixNano())
-			seed ^= 6364136223846793005 * uint64(gameID+1) // Knuth multiplicative mix, fits in uint64
-			r := rand.New(rand.NewSource(int64(seed)))
+	var count uint64
+	workers := runtime.NumCPU()
 
-			batterIndex := 0
-			for inning := 1; inning <= 9; inning++ {
-				//fmt.Println("Inning:", inning)
-				outs := 0
-				for outs < 3 {
-					game.Field.AtBat = &players[batterIndex]
-					result := players[batterIndex].PlateAppearance("right", r)
-					//fmt.Println(players[batterIndex].LastName + ", " + players[batterIndex].FirstName + ": " + result)
-					switch result {
-					case baseball.HIT_OUT:
-						outs++
-						if game.Field.FirstBase != nil && outs < 2 {
-							if r.Float64() < 0.11 { // ~11% DP rate when R1, <2 outs
+	// Start workers
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func(workerID int) {
+			defer wg.Done()
+			r := rand.New(rand.NewSource(time.Now().UnixNano() + int64(workerID)*9973))
+			for lineup := range lineupCh {
+				for g := 0; g < lineupCount; g++ {
+					// --- Begin single-game simulation for this lineup ---
+					game := baseball.Game{}
+					batterIndex := 0
+					for inning := 1; inning <= 9; inning++ {
+						outs := 0
+						for outs < 3 {
+							game.Field.AtBat = &lineup[batterIndex]
+							result := lineup[batterIndex].PlateAppearance("right", r)
+							switch result {
+							case baseball.HIT_OUT:
 								outs++
-								game.Field.FirstBase = nil
+								if game.Field.FirstBase != nil && outs < 2 {
+									if r.Float64() < 0.11 {
+										outs++
+										game.Field.FirstBase = nil
+									}
+								}
+							case baseball.HIT_BY_PITCH_WALK:
+								game.Hit(baseball.HIT_BY_PITCH_WALK)
+							case baseball.HIT_SINGLE:
+								game.Hit(baseball.HIT_SINGLE)
+							case baseball.HIT_DOUBLE:
+								game.Hit(baseball.HIT_DOUBLE)
+							case baseball.HIT_TRIPLE:
+								game.Hit(baseball.HIT_TRIPLE)
+							case baseball.HIT_HOMERUN:
+								game.Hit(baseball.HIT_HOMERUN)
+							}
+							game.Field.AtBat = nil
+							batterIndex++
+							if batterIndex >= 9 {
+								batterIndex = 0
 							}
 						}
-					case baseball.HIT_BY_PITCH_WALK:
-						game.Hit(baseball.HIT_BY_PITCH_WALK)
-					case baseball.HIT_SINGLE:
-						game.Hit(baseball.HIT_SINGLE)
-					case baseball.HIT_DOUBLE:
-						game.Hit(baseball.HIT_DOUBLE)
-					case baseball.HIT_TRIPLE:
-						game.Hit(baseball.HIT_TRIPLE)
-					case baseball.HIT_HOMERUN:
-						game.Hit(baseball.HIT_HOMERUN)
+						lob := game.Field.LOB()
+						game.AddLOB(lob)
+						game.Field.FirstBase, game.Field.SecondBase, game.Field.ThirdBase = nil, nil, nil
 					}
-					game.Field.AtBat = nil
-					batterIndex++
-					if batterIndex >= 9 {
-						batterIndex = 0
-					}
+					// --- End single-game simulation ---
 				}
-				lob := game.Field.LOB()
-				game.AddLOB(lob)
-				game.Field.FirstBase, game.Field.SecondBase, game.Field.ThirdBase = nil, nil, nil
-				//fmt.Println("Inning:", inning, "LOB:", lob, "runs:", game.Runs-runsStart, "total:", game.Runs)
-				//fmt.Println("----------")
+				// Progress counter
+				if atomic.AddUint64(&count, 1)%100000 == 0 {
+					fmt.Printf("Processed %d permutations...\n", atomic.LoadUint64(&count))
+				}
 			}
-			finalLOB := game.LOB
-			_ = finalLOB
-			//fmt.Printf("Final totals — Hits: %d, Runs: %d, LOB: %d\n", game.Hits, game.Runs, finalLOB)
-			if game.Hits == 0 {
-				fmt.Println("NO HITTER! GAME:" + fmt.Sprintf("%v", gameID))
-			}
-		}(gamecount)
+		}(w)
 	}
+
+	// Loop over all possible 9-player lineups (generator feeding workers)
+	go func() {
+		combinations(len(players), 9, func(idx []int) bool {
+			permutations(idx, func(order []int) bool {
+				lineup := make([]baseball.Player, 9)
+				for i := 0; i < 9; i++ {
+					lineup[i] = players[order[i]]
+				}
+				lineupCh <- lineup
+				return true
+			})
+			return true
+		})
+		close(lineupCh)
+	}()
+
 	wg.Wait()
 }

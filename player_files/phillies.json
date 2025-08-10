@@ -60,9 +60,9 @@
     "RHP": { "avg": 0.244, "obp": 0.323, "slug": 0.382 }
   },
   {
-    "first_name": "Otto",
-    "last_name": "Kemp",
-    "LHP": { "avg": 0.268, "obp": 0.362, "slug": 0.463 },
-    "RHP": { "avg": 0.227, "obp": 0.283, "slug": 0.340 }
+    "first_name": "Harrison",
+    "last_name": "Bader",
+    "LHP": { "avg": 0.211, "obp": 0.290, "slug": 0.367 },
+    "RHP": { "avg": 0.265, "obp": 0.349, "slug": 0.440 }
   }
 ]
