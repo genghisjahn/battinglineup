@@ -29,8 +29,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load players: %v", err)
 	}
-	gamecount := 0
-	for {
+	//gamecount := 0
+	for gamecount := 0; gamecount <= 1000; gamecount++ {
 		gamecount++
 		game := baseball.Game{}
 		rand.Seed(time.Now().UnixNano())
@@ -82,12 +82,8 @@ func main() {
 		//fmt.Printf("Final totals — Hits: %d, Runs: %d, LOB: %d\n", game.Hits, game.Runs, finalLOB)
 		if game.Hits == 0 {
 			fmt.Println("NO HITTER! GAME:" + fmt.Sprintf("%v", gamecount))
-			break
-		}
-		if gamecount == 1000 {
-			fmt.Println("Done")
-			break
 
 		}
+
 	}
 }
