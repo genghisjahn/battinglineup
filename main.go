@@ -24,12 +24,86 @@ func loadPlayersFromFile(filePath string) ([]baseball.Player, error) {
 	return players, nil
 }
 
+// combinations generates all k-combinations of numbers 0..n-1.
+// For each combination, it calls yield with a slice of indices.
+// If yield returns false, iteration stops.
+func combinations(n, k int, yield func([]int) bool) {
+	idx := make([]int, k)
+	var rec func(int, int) bool
+	rec = func(i, start int) bool {
+		if i == k {
+			comb := make([]int, k)
+			copy(comb, idx)
+			return yield(comb)
+		}
+		for s := start; s <= n-(k-i); s++ {
+			idx[i] = s
+			if !rec(i+1, s+1) {
+				return false
+			}
+		}
+		return true
+	}
+	rec(0, 0)
+}
+
+// permutations generates all permutations of a slice of indices.
+// For each permutation, it calls yield with the permuted indices.
+// If yield returns false, iteration stops.
+func permutations(idx []int, yield func([]int) bool) {
+	perm := make([]int, len(idx))
+	copy(perm, idx)
+	var rec func(int) bool
+	rec = func(i int) bool {
+		if i == len(perm) {
+			p := make([]int, len(perm))
+			copy(p, perm)
+			return yield(p)
+		}
+		for j := i; j < len(perm); j++ {
+			perm[i], perm[j] = perm[j], perm[i]
+			if !rec(i + 1) {
+				perm[i], perm[j] = perm[j], perm[i]
+				return false
+			}
+			perm[i], perm[j] = perm[j], perm[i]
+		}
+		return true
+	}
+	rec(0)
+}
+
 func main() {
 
-	players, err := loadPlayersFromFile("player_files/sample.json")
+	players, err := loadPlayersFromFile("player_files/phillies.json")
 	if err != nil {
 		log.Fatalf("Failed to load players: %v", err)
 	}
+
+	if len(players) < 9 {
+		log.Fatalf("Need at least 9 players, have %d", len(players))
+	}
+
+	// Loop over all possible 9-player lineups
+	count := 0
+	combinations(len(players), 9, func(idx []int) bool {
+		permutations(idx, func(order []int) bool {
+			lineup := make([]baseball.Player, 9)
+			for i := 0; i < 9; i++ {
+				lineup[i] = players[order[i]]
+			}
+
+			// This is where you'll put your simulation logic later
+
+			count++
+			if count%100000 == 0 {
+				fmt.Printf("Processed %d permutations...\n", count)
+			}
+			return true
+		})
+		return true
+	})
+	return
 	rand.Seed(time.Now().UnixNano())
 	var wg sync.WaitGroup
 	for gamecount := 0; gamecount < 1000; gamecount++ {
