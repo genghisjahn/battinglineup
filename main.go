@@ -1,18 +1,81 @@
 package main
 
 import (
+	"container/heap"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
 	"log"
 	"math/rand"
 	"runtime"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	baseball "github.com/genghisjahn/battinglineup/batting"
 )
+
+// Agg holds aggregate stats per unique lineup key.
+type Agg struct {
+	Games int64
+	Runs  int64
+	Hits  int64
+}
+
+// lineupStats maps lineup hash -> aggregates. Safe for concurrent use.
+var lineupStats sync.Map
+
+// lineupResult holds summary for a single ordered lineup.
+type lineupResult struct {
+	Median float64
+	Mean   float64
+	Order  []string
+	Hash   uint64
+}
+
+// min-heap by Median
+type resultHeap []lineupResult
+
+func (h resultHeap) Len() int            { return len(h) }
+func (h resultHeap) Less(i, j int) bool  { return h[i].Mean < h[j].Mean }
+func (h resultHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h *resultHeap) Push(x interface{}) { *h = append(*h, x.(lineupResult)) }
+func (h *resultHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
+}
+
+var (
+	topK    = 256
+	hmu     sync.Mutex
+	topHeap resultHeap
+)
+
+const bottomK = 10
+
+var bmu sync.Mutex
+
+type maxResultHeap []lineupResult
+
+func (h maxResultHeap) Len() int            { return len(h) }
+func (h maxResultHeap) Less(i, j int) bool  { return h[i].Mean > h[j].Mean } // max-heap by Mean
+func (h maxResultHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h *maxResultHeap) Push(x interface{}) { *h = append(*h, x.(lineupResult)) }
+func (h *maxResultHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
+}
+
+var bottomHeap maxResultHeap
 
 func loadPlayersFromFile(filePath string) ([]baseball.Player, error) {
 	data, err := ioutil.ReadFile(filePath)
@@ -75,6 +138,23 @@ func permutations(idx []int, yield func([]int) bool) {
 	rec(0)
 }
 
+// lineupHash returns a stable 64-bit FNV-1a hash for the ordered 9-player lineup.
+// It incorporates batting ORDER and uses LastName,FirstName for identity.
+func lineupHash(lineup []baseball.Player) uint64 {
+	h := fnv.New64a()
+	// Build a compact key like: 0:Last,First|1:Last,First|...|8:Last,First
+	var b strings.Builder
+	b.Grow(9 * 20) // heuristic to reduce reallocs
+	for i := 0; i < len(lineup); i++ {
+		if i > 0 {
+			b.WriteByte('|')
+		}
+		b.WriteString(fmt.Sprintf("%d:%s,%s", i, lineup[i].LastName, lineup[i].FirstName))
+	}
+	h.Write([]byte(b.String()))
+	return h.Sum64()
+}
+
 func main() {
 
 	players, err := loadPlayersFromFile("player_files/phillies.json")
@@ -86,7 +166,7 @@ func main() {
 		log.Fatalf("Need at least 9 players, have %d", len(players))
 	}
 
-	lineupCount := 1
+	lineupCount := 500
 
 	// Concurrent lineup processing
 	lineupCh := make(chan []baseball.Player, 1024)
@@ -101,6 +181,14 @@ func main() {
 			defer wg.Done()
 			r := rand.New(rand.NewSource(time.Now().UnixNano() + int64(workerID)*9973))
 			for lineup := range lineupCh {
+				// Compute unique key for this ordered lineup
+				hash := lineupHash(lineup)
+				orderNames := make([]string, 9)
+				for i := 0; i < 9; i++ {
+					orderNames[i] = lineup[i].LastName
+				}
+				runs := make([]int, 0, lineupCount)
+				var runsSum, hitsSum int64
 				for g := 0; g < lineupCount; g++ {
 					// --- Begin single-game simulation for this lineup ---
 					game := baseball.Game{}
@@ -141,7 +229,53 @@ func main() {
 						game.Field.FirstBase, game.Field.SecondBase, game.Field.ThirdBase = nil, nil, nil
 					}
 					// --- End single-game simulation ---
+					runs = append(runs, game.Runs)
+					runsSum += int64(game.Runs)
+					hitsSum += int64(game.Hits)
 				}
+				// Compute median/mean for this lineup
+				median := func(xs []int) float64 {
+					if len(xs) == 0 {
+						return 0
+					}
+					cpy := make([]int, len(xs))
+					copy(cpy, xs)
+					sort.Ints(cpy)
+					m := len(cpy) / 2
+					if len(cpy)%2 == 1 {
+						return float64(cpy[m])
+					}
+					return float64(cpy[m-1]+cpy[m]) / 2.0
+				}(runs)
+				mean := float64(runsSum) / float64(lineupCount)
+
+				// Maintain top-K by mean
+				hmu.Lock()
+				if len(topHeap) < topK {
+					heap.Push(&topHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+				} else if topHeap[0].Mean < mean {
+					heap.Pop(&topHeap)
+					heap.Push(&topHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+				}
+				hmu.Unlock()
+
+				// Maintain bottom-K by mean
+				bmu.Lock()
+				if len(bottomHeap) < bottomK {
+					heap.Push(&bottomHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+				} else if bottomHeap[0].Mean > mean {
+					heap.Pop(&bottomHeap)
+					heap.Push(&bottomHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+				}
+				bmu.Unlock()
+
+				// Update global aggregates once per lineup
+				val, _ := lineupStats.LoadOrStore(hash, &Agg{})
+				agg := val.(*Agg)
+				atomic.AddInt64(&agg.Games, int64(lineupCount))
+				atomic.AddInt64(&agg.Runs, runsSum)
+				atomic.AddInt64(&agg.Hits, hitsSum)
+
 				// Progress counter
 				if atomic.AddUint64(&count, 1)%100000 == 0 {
 					fmt.Printf("Processed %d permutations...\n", atomic.LoadUint64(&count))
@@ -167,4 +301,29 @@ func main() {
 	}()
 
 	wg.Wait()
+
+	// Output top-K by mean runs
+	hmu.Lock()
+	results := make([]lineupResult, len(topHeap))
+	copy(results, topHeap)
+	hmu.Unlock()
+	sort.Slice(results, func(i, j int) bool { return results[i].Mean > results[j].Mean })
+	fmt.Println("Top lineups by average runs:")
+	for i, r := range results {
+		id := fmt.Sprintf("%x", r.Hash)[:6]
+		fmt.Printf("%2d) ID=%s mean=%.3f median=%.3f order=%v\n", i+1, id, r.Mean, r.Median, r.Order)
+	}
+
+	// Output bottom-K by mean runs
+	bmu.Lock()
+	bresults := make([]lineupResult, len(bottomHeap))
+	copy(bresults, bottomHeap)
+	bmu.Unlock()
+
+	sort.Slice(bresults, func(i, j int) bool { return bresults[i].Mean < bresults[j].Mean })
+	fmt.Println("Bottom lineups by average runs:")
+	for i, r := range bresults {
+		id := fmt.Sprintf("%x", r.Hash)[:6]
+		fmt.Printf("%2d) ID=%s mean=%.3f median=%.3f order=%v\n", i+1, id, r.Mean, r.Median, r.Order)
+	}
 }
