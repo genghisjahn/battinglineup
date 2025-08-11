@@ -166,7 +166,7 @@ func main() {
 		log.Fatalf("Need at least 9 players, have %d", len(players))
 	}
 
-	lineupCount := 500
+	lineupCount := 200
 
 	// Concurrent lineup processing
 	lineupCh := make(chan []baseball.Player, 1024)
