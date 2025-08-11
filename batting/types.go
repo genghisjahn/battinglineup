@@ -23,7 +23,7 @@ type Player struct {
 	RHP       Stats  `json:"RHP"`
 }
 
-func (p Player) PlateAppearance(LRPitcher string) string {
+func (p Player) PlateAppearance(LRPitcher string, r *rand.Rand) string {
 	// Choose splits based on pitcher handedness input ("left" uses LHP, otherwise RHP)
 	var s Stats
 	if LRPitcher == "left" {
@@ -31,17 +31,16 @@ func (p Player) PlateAppearance(LRPitcher string) string {
 	} else {
 		s = p.RHP
 	}
-
-	r := rand.Float64()
+	u := r.Float64()
 	// Outcome by OBP/AVG thresholds
-	if r > s.OBP {
+	if u > s.OBP {
 		return HIT_OUT
 	}
-	if r > s.AVG { // r <= OBP here
+	if u > s.AVG { // u <= OBP here
 		return HIT_BY_PITCH_WALK
 	}
 	// It's a hit: decide which kind
-	return hitType(s.AVG, s.SLUG)
+	return hitType(s.AVG, s.SLUG, r)
 }
 
 type Stats struct {
@@ -75,6 +74,17 @@ func (g *Game) AddLOB(lob int) {
 	g.LOB += lob
 }
 
+// currentBatterSlug returns the hitter's SLUG vs the current pitcher hand.
+func (g *Game) currentBatterSlug() float64 {
+	if g.Field.AtBat == nil {
+		return 0.0
+	}
+	if g.PitcherHand == "left" {
+		return g.Field.AtBat.LHP.SLUG
+	}
+	return g.Field.AtBat.RHP.SLUG
+}
+
 func (g *Game) Hit(hittype string) {
 	if hittype == HIT_BY_PITCH_WALK {
 		// Force-only advances on walk/HBP
@@ -98,15 +108,21 @@ func (g *Game) Hit(hittype string) {
 		g.Field.AtBat = nil
 	}
 	if hittype == HIT_SINGLE {
-		//TODO, sometimes a run will score from Second
 		g.Hits++
 		if g.Field.ThirdBase != nil {
 			g.Field.ThirdBase = nil
 			g.Runs++
 		}
+		// With some probability, the runner from 2B scores; otherwise advances to 3B.
 		if g.Field.SecondBase != nil {
-			g.Field.ThirdBase = g.Field.SecondBase
-			g.Field.SecondBase = nil
+			p := probScoreFromSecondOnSingle(g.currentBatterSlug())
+			if rand.Float64() < p {
+				g.Field.SecondBase = nil
+				g.Runs++
+			} else {
+				g.Field.ThirdBase = g.Field.SecondBase
+				g.Field.SecondBase = nil
+			}
 		}
 		if g.Field.FirstBase != nil {
 			g.Field.SecondBase = g.Field.FirstBase
@@ -116,20 +132,29 @@ func (g *Game) Hit(hittype string) {
 		g.Field.AtBat = nil
 	}
 	if hittype == HIT_DOUBLE {
-		//TODO, sometimes a run will score from First
 		g.Hits++
+		// Any runner on 3B scores
 		if g.Field.ThirdBase != nil {
 			g.Field.ThirdBase = nil
 			g.Runs++
 		}
+		// Any runner on 2B scores
 		if g.Field.SecondBase != nil {
 			g.Field.SecondBase = nil
 			g.Runs++
 		}
+		// Runner on 1B sometimes scores on a double; otherwise goes to 3B
 		if g.Field.FirstBase != nil {
-			g.Field.ThirdBase = g.Field.FirstBase
-			g.Field.FirstBase = nil
+			p := probScoreFromFirstOnDouble(g.currentBatterSlug())
+			if rand.Float64() < p {
+				g.Field.FirstBase = nil
+				g.Runs++
+			} else {
+				g.Field.ThirdBase = g.Field.FirstBase
+				g.Field.FirstBase = nil
+			}
 		}
+		// Batter to 2B
 		g.Field.SecondBase = g.Field.AtBat
 		g.Field.AtBat = nil
 	}
@@ -169,14 +194,61 @@ func (g *Game) Hit(hittype string) {
 	}
 }
 
-type Game struct {
-	Hits  int
-	Runs  int
-	LOB   int
-	Field Field
+// probScoreFromSecondOnSingle maps batter SLUG to a probability that a runner on second scores on a single.
+// Calibrated to produce roughly 0.38–0.72 across SLUG 0.350–0.600, with sensible clamping.
+func probScoreFromSecondOnSingle(slug float64) float64 {
+	// Default to a league-average-ish SLUG if missing
+	if slug <= 0 {
+		slug = 0.400
+	}
+	// Clamp slug to a realistic band
+	if slug < 0.350 {
+		slug = 0.350
+	}
+	if slug > 0.600 {
+		slug = 0.600
+	}
+
+	// Linearly map slug in [0.350, 0.600] to probability in [0.38, 0.72]
+	minS, maxS := 0.350, 0.600
+	minP, maxP := 0.38, 0.72
+	t := (slug - minS) / (maxS - minS)
+	return minP + t*(maxP-minP)
 }
 
-func hitType(avg, slug float64) string {
+// probScoreFromFirstOnDouble maps batter SLUG to a probability that a runner on first
+// scores on a double. Calibrated to produce roughly 0.32–0.62 across SLUG 0.350–0.600,
+// with sensible clamping. This is slightly higher-impact than 2B->home on a single,
+// but still bounded by realistic MLB baselines.
+func probScoreFromFirstOnDouble(slug float64) float64 {
+	// Default to a league-average-ish SLUG if missing
+	if slug <= 0 {
+		slug = 0.400
+	}
+	// Clamp slug to a realistic band
+	if slug < 0.350 {
+		slug = 0.350
+	}
+	if slug > 0.600 {
+		slug = 0.600
+	}
+
+	// Linearly map slug in [0.350, 0.600] to probability in [0.32, 0.62]
+	minS, maxS := 0.350, 0.600
+	minP, maxP := 0.32, 0.62
+	t := (slug - minS) / (maxS - minS)
+	return minP + t*(maxP-minP)
+}
+
+type Game struct {
+	Hits        int
+	Runs        int
+	LOB         int
+	Field       Field
+	PitcherHand string // "left" or "right"
+}
+
+func hitType(avg, slug float64, r *rand.Rand) string {
 	// Defensive defaults
 	if avg <= 0 || slug <= 0 {
 		return HIT_SINGLE
@@ -258,16 +330,16 @@ func hitType(avg, slug float64) string {
 	}
 
 	// Draw
-	r := rand.Float64()
-	if r < pS {
+	u := r.Float64()
+	if u < pS {
 		return HIT_SINGLE
 	}
-	r -= pS
-	if r < p2 {
+	u -= pS
+	if u < p2 {
 		return HIT_DOUBLE
 	}
-	r -= p2
-	if r < p3 {
+	u -= p2
+	if u < p3 {
 		return HIT_TRIPLE
 	}
 	return HIT_HOMERUN
