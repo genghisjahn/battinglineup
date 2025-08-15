@@ -30,10 +30,9 @@ var lineupStats sync.Map
 
 // lineupResult holds summary for a single ordered lineup.
 type lineupResult struct {
-	Median float64
-	Mean   float64
-	Order  []string
-	Hash   uint64
+	Mean  float64
+	Order []string
+	Hash  uint64
 }
 
 // min-heap by Median
@@ -192,8 +191,11 @@ func main() {
 				for g := 0; g < lineupCount; g++ {
 					// --- Begin single-game simulation for this lineup ---
 					game := baseball.Game{}
+					game.StartPitcher(r)
+					var pitcherChanged bool
 					batterIndex := 0
 					for inning := 1; inning <= 9; inning++ {
+						game.MaybeChangePitcher(inning, &pitcherChanged, r)
 						outs := 0
 						for outs < 3 {
 							game.Field.AtBat = &lineup[batterIndex]
@@ -233,39 +235,26 @@ func main() {
 					runsSum += int64(game.Runs)
 					hitsSum += int64(game.Hits)
 				}
-				// Compute median/mean for this lineup
-				median := func(xs []int) float64 {
-					if len(xs) == 0 {
-						return 0
-					}
-					cpy := make([]int, len(xs))
-					copy(cpy, xs)
-					sort.Ints(cpy)
-					m := len(cpy) / 2
-					if len(cpy)%2 == 1 {
-						return float64(cpy[m])
-					}
-					return float64(cpy[m-1]+cpy[m]) / 2.0
-				}(runs)
+
 				mean := float64(runsSum) / float64(lineupCount)
 
 				// Maintain top-K by mean
 				hmu.Lock()
 				if len(topHeap) < topK {
-					heap.Push(&topHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+					heap.Push(&topHeap, lineupResult{Mean: mean, Order: orderNames, Hash: hash})
 				} else if topHeap[0].Mean < mean {
 					heap.Pop(&topHeap)
-					heap.Push(&topHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+					heap.Push(&topHeap, lineupResult{Mean: mean, Order: orderNames, Hash: hash})
 				}
 				hmu.Unlock()
 
 				// Maintain bottom-K by mean
 				bmu.Lock()
 				if len(bottomHeap) < bottomK {
-					heap.Push(&bottomHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+					heap.Push(&bottomHeap, lineupResult{Mean: mean, Order: orderNames, Hash: hash})
 				} else if bottomHeap[0].Mean > mean {
 					heap.Pop(&bottomHeap)
-					heap.Push(&bottomHeap, lineupResult{Median: median, Mean: mean, Order: orderNames, Hash: hash})
+					heap.Push(&bottomHeap, lineupResult{Mean: mean, Order: orderNames, Hash: hash})
 				}
 				bmu.Unlock()
 
@@ -311,7 +300,7 @@ func main() {
 	fmt.Println("Top lineups by average runs:")
 	for i, r := range results {
 		id := fmt.Sprintf("%x", r.Hash)[:6]
-		fmt.Printf("%2d) ID=%s mean=%.3f median=%.3f order=%v\n", i+1, id, r.Mean, r.Median, r.Order)
+		fmt.Printf("%2d) ID=%s mean=%.3f  order=%v\n", i+1, id, r.Mean, r.Order)
 	}
 
 	// Output bottom-K by mean runs
@@ -324,6 +313,6 @@ func main() {
 	fmt.Println("Bottom lineups by average runs:")
 	for i, r := range bresults {
 		id := fmt.Sprintf("%x", r.Hash)[:6]
-		fmt.Printf("%2d) ID=%s mean=%.3f median=%.3f order=%v\n", i+1, id, r.Mean, r.Median, r.Order)
+		fmt.Printf("%2d) ID=%s mean=%.3f  order=%v\n", i+1, id, r.Mean, r.Order)
 	}
 }
