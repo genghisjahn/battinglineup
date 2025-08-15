@@ -23,6 +23,9 @@ type Player struct {
 	RHP       Stats  `json:"RHP"`
 }
 
+//TODO add speed:
+//https://baseballsavant.mlb.com/leaderboard/sprint_speed?min_season=2025&max_season=2025&position=&team=143&min=10
+
 func (p Player) PlateAppearance(LRPitcher string, r *rand.Rand) string {
 	// Choose splits based on pitcher handedness input ("left" uses LHP, otherwise RHP)
 	var s Stats
@@ -246,6 +249,31 @@ type Game struct {
 	LOB         int
 	Field       Field
 	PitcherHand string // "left" or "right"
+}
+
+func (g *Game) StartPitcher(r *rand.Rand) {
+	if r.Float64() < 0.3 {
+		g.PitcherHand = "left"
+	} else {
+		g.PitcherHand = "right"
+	}
+}
+
+func (g *Game) MaybeChangePitcher(inning int, changed *bool, r *rand.Rand) {
+	if *changed {
+		return
+	}
+	if inning >= 5 && inning <= 9 {
+		if r.Float64() < 0.5 {
+			// Change pitcher
+			if r.Float64() < 0.3 {
+				g.PitcherHand = "left"
+			} else {
+				g.PitcherHand = "right"
+			}
+			*changed = true
+		}
+	}
 }
 
 func hitType(avg, slug float64, r *rand.Rand) string {
